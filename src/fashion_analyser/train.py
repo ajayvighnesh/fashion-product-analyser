@@ -63,11 +63,13 @@ def train(df: pd.DataFrame, out_dir: str | Path, model: MultiTaskClassifier | No
           backbone: str = DEFAULT_BACKBONE, epochs: int = 5, freeze_epochs: int = 1,
           batch_size: int = 32, lr_head: float = 1e-3, lr_backbone: float = 3e-5,
           image_size: int = 224, num_workers: int = 2, device: str = "auto",
-          seed: int = 42, log=print) -> dict:
+          seed: int = 42, amp: bool = True, log_every: int = 200, log=print) -> dict:
     torch.manual_seed(seed)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     dev = pick_device(device)
+    use_amp = amp and dev.type == "cuda"  # mixed precision: ~2x faster on a T4/V100
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
     train_df, val_df, test_df = split(df, seed=seed)
     labels = LabelMaps(categories=sorted(df["category"].unique()))
@@ -78,6 +80,7 @@ def train(df: pd.DataFrame, out_dir: str | Path, model: MultiTaskClassifier | No
     mk = lambda d, tr: DataLoader(  # noqa: E731
         ProductImageDataset(d, labels, image_size, train=tr, seed=seed),
         batch_size=batch_size, shuffle=tr, num_workers=num_workers,
+        pin_memory=dev.type == "cuda",
     )
     train_dl, val_dl, test_dl = mk(train_df, True), mk(val_df, False), mk(test_df, False)
 
@@ -107,16 +110,21 @@ def train(df: pd.DataFrame, out_dir: str | Path, model: MultiTaskClassifier | No
 
         model.train()
         t0, running = time.time(), 0.0
-        for x, yc, yl in train_dl:
+        for step, (x, yc, yl) in enumerate(train_dl, 1):
             x, yc, yl = x.to(dev), yc.to(dev), yl.to(dev)
-            lc, ll = model(x)
-            loss = loss_cat(lc, yc) + loss_col(ll, yl)
+            with torch.autocast(device_type=dev.type, dtype=torch.float16, enabled=use_amp):
+                lc, ll = model(x)
+                loss = loss_cat(lc.float(), yc) + loss_col(ll.float(), yl)
             opt.zero_grad()
-            loss.backward()
+            scaler.scale(loss).backward()
+            scaler.unscale_(opt)
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            opt.step()
+            scaler.step(opt)
+            scaler.update()
             sched.step()
             running += loss.item() * len(x)
+            if log_every and step % log_every == 0:
+                log(f"  epoch {epoch} step {step}/{len(train_dl)} loss {loss.item():.3f}")
 
         val = evaluate(model, val_dl, dev)
         score = (val["category_macro_f1"] + val["colour_macro_f1"]) / 2
@@ -163,6 +171,7 @@ def main(argv=None):
     p.add_argument("--num-workers", type=int, default=2)
     p.add_argument("--device", default="auto")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--no-amp", action="store_true", help="disable mixed precision on GPU")
     a = p.parse_args(argv)
 
     df = load_metadata(a.data_dir, top_k_categories=a.top_k_categories)
@@ -172,7 +181,7 @@ def main(argv=None):
                                            random_state=a.seed).reset_index(drop=True)
     train(df, a.out_dir, backbone=a.backbone, epochs=a.epochs, freeze_epochs=a.freeze_epochs,
           batch_size=a.batch_size, image_size=a.image_size, num_workers=a.num_workers,
-          device=a.device, seed=a.seed)
+          device=a.device, seed=a.seed, amp=not a.no_amp)
 
 
 if __name__ == "__main__":

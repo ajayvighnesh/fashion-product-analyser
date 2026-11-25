@@ -74,8 +74,12 @@ python -m fashion_analyser.train --data-dir data --out-dir runs/vit --epochs 5
 python app.py --run-dir runs/vit            # Gradio demo at http://127.0.0.1:7860
 ```
 
-Training on a laptop CPU: add `--max-samples 4000 --epochs 3` for a quicker run. A free Colab
-GPU runs the full dataset in well under an hour.
+**Train on a free GPU:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/ajayvighnesh/fashion-product-analyser/blob/main/notebooks/train_colab.ipynb)
+[`notebooks/train_colab.ipynb`](notebooks/train_colab.ipynb) installs everything, downloads the data,
+trains with mixed precision on a T4, and shows results, confusion matrices, example predictions
+and photo/title conflict rates.
+
+Training on a laptop CPU: add `--max-samples 4000 --epochs 3` for a quicker run.
 
 Training writes to `runs/<name>/`: `model.pt`, `labels.json`, `metrics.json` (per-epoch history and
 test-set accuracy and macro-F1 for both heads) and confusion matrices as CSV.
