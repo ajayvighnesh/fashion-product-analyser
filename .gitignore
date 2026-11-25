@@ -13,3 +13,7 @@ runs/
 !docs/*.png
 .ipynb_checkpoints/
 .DS_Store
+node_modules/
+frontend/dist/
+.env.local
+*.tsbuildinfo

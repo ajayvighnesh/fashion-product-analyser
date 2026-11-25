@@ -31,7 +31,6 @@ def build_ui(analyser: Analyser) -> gr.Blocks:
         if image is None:
             return "Upload an image first.", "", "", ""
         rec = analyse_product(analyser, image, text or "")
-        pred = analyser.predict(image)
         status = "Needs human review" if rec["needs_review"] else "Looks consistent"
         notes = "\n".join(f"- {c}" for c in rec["conflicts"] + rec["warnings"]) or "- none"
         summary = (f"### {rec['colour']} {rec['category']}"
@@ -41,7 +40,7 @@ def build_ui(analyser: Analyser) -> gr.Blocks:
         if variant.strip():
             prompt = json.dumps(draft_prompt(rec["category"], rec["colour"], rec["gender"],
                                              variant).to_dict(), indent=2)
-        return summary, swatches(pred.dominant_rgb), json.dumps(rec, indent=2), prompt
+        return summary, swatches(rec["dominant_rgb"]), json.dumps(rec, indent=2), prompt
 
     with gr.Blocks(title="Fashion Product Analyser") as demo:
         gr.Markdown("# Fashion Product Analyser\nCategory and colour from the photo, "

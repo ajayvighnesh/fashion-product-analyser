@@ -9,3 +9,7 @@ langchain-core>=1.0
 gradio>=4
 datasets
 pytest
+fastapi>=0.110
+uvicorn
+python-multipart
+httpx

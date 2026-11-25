@@ -44,6 +44,7 @@ def analyse_product(analyser: Analyser, image, product_text: str = "") -> dict:
     record = merge(pred, text).to_dict()
     record["top_categories"] = pred["top_categories"]
     record["top_colours"] = pred["top_colours"]
+    record["dominant_rgb"] = pred["dominant_rgb"]
     return record
 
 

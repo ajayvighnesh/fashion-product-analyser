@@ -23,10 +23,11 @@ dependencies = [
 
 [project.optional-dependencies]
 demo = ["gradio>=4"]
+api = ["fastapi>=0.110", "uvicorn", "python-multipart"]
 data = ["datasets", "kagglehub"]
 llm = ["langchain-openai", "langchain-ollama"]
 generate = ["diffusers", "accelerate"]
-dev = ["pytest"]
+dev = ["pytest", "httpx"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

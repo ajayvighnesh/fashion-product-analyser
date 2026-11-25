@@ -12,7 +12,9 @@ that data to draft Stable Diffusion prompts for new design variants.
   cross-checked against the photo. Contradictions are flagged for human review.
 - **GenAI agent:** a LangChain agent answers questions about a product and drafts design-variant
   prompts. It may only state attributes it got from a tool, so its answers are traceable.
-- **Tested with edge cases:** 64 tests cover corrupt files, transparent PNGs, grayscale and 16-bit
+- **Web app for customers:** a React + TypeScript frontend talks to a FastAPI backend. Upload a photo,
+  see the result with confidence bars and colour swatches, and copy the design prompt.
+- **Tested with edge cases:** 80 tests (73 Python, 7 React) cover corrupt files, transparent PNGs, grayscale and 16-bit
   images, tiny or extreme-aspect photos, blur, under/over-exposure, conflicting titles, prompt-injection
   characters in variant text, and a full train, predict and agent run.
 
@@ -67,7 +69,7 @@ cd fashion-product-analyser
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[demo,data,dev]"
 
-pytest -q                                   # 64 tests, no download needed (~10 s on CPU)
+pytest -q                                   # 73 tests, no download needed (~10 s on CPU)
 
 python scripts/download_data.py             # Fashion Product Images (Small), ~44k products
 python -m fashion_analyser.train --data-dir data --out-dir runs/vit --epochs 5
@@ -107,6 +109,36 @@ Without an LLM, the same pipeline is one call: `analyse_product(analyser, image,
 
 To render a drafted prompt: `pip install -e ".[generate]"`, then
 `python -m fashion_analyser.generate --prompt-json prompt.json` (a GPU is recommended).
+
+## Web app (React + FastAPI)
+
+The customer-facing app: drag in a product photo, optionally add its title and a design idea, and get
+the product type and colour with confidence bars, the main colours in the photo, any photo/title
+conflicts, and a copyable Stable Diffusion prompt. It works on desktop and mobile.
+
+```bash
+# terminal 1: API (needs a trained run)
+pip install -e ".[api]"
+RUN_DIR=runs/vit uvicorn fashion_analyser.api:app --port 8000
+
+# terminal 2: frontend
+cd frontend
+npm install
+npm run dev          # http://localhost:5173 (calls to /api are proxied to port 8000)
+npm test             # 7 component tests
+```
+
+| Endpoint | Description |
+|---|---|
+| `GET /api/health` | Model status and label lists |
+| `POST /api/analyse` | Multipart form: `image` (file), `title`, `variant` (optional text) |
+
+The API rejects empty or unreadable files (422), uploads over 10 MB (413) and text over 300 characters,
+and returns 503 with a clear message if no model is loaded. The frontend checks file type and size before
+uploading and shows server errors in plain language. For deployment, set `VITE_API_URL` to the API's
+address when building the frontend, and `CORS_ORIGINS` on the API to the frontend's address.
+
+The Gradio app (`python app.py --run-dir runs/vit`) is still there as a quick internal demo.
 
 ## Design decisions
 
@@ -152,9 +184,11 @@ src/fashion_analyser/
   prompts.py           Stable Diffusion prompt template
   agent.py             LangChain tools and agent
   generate.py          optional Stable Diffusion rendering
+  api.py               FastAPI backend for the web app
+frontend/              React + TypeScript web app (Vite, Vitest)
 app.py                 Gradio demo
 scripts/               dataset download, synthetic data for tests
-tests/                 64 pytest tests
+tests/                 73 pytest tests
 ```
 
 ## Data
