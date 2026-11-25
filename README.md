@@ -5,6 +5,8 @@
 Turn a product photo and its title into clean, structured product data, and use
 that data to draft Stable Diffusion prompts for new design variants.
 
+**On 3,309 unseen products it identifies the product type correctly 94% of the time and the colour 77% of the time** ([results](#results)).
+
 - **Computer vision:** a pretrained Hugging Face backbone (ViT by default), fine-tuned in PyTorch with
   two heads that predict **product category** and **colour**. OpenCV handles preprocessing and
   image-quality checks.
@@ -14,7 +16,7 @@ that data to draft Stable Diffusion prompts for new design variants.
   prompts. It may only state attributes it got from a tool, so its answers are traceable.
 - **Web app for customers:** a React + TypeScript frontend talks to a FastAPI backend. Upload a photo,
   see the result with confidence bars and colour swatches, and copy the design prompt.
-- **Tested with edge cases:** 80 tests (73 Python, 7 React) cover corrupt files, transparent PNGs, grayscale and 16-bit
+- **Tested with edge cases:** 86 tests (79 Python, 7 React) cover corrupt files, transparent PNGs, grayscale and 16-bit
   images, tiny or extreme-aspect photos, blur, under/over-exposure, conflicting titles, prompt-injection
   characters in variant text, and a full train, predict and agent run.
 
@@ -32,26 +34,57 @@ flowchart LR
     I --> J[Stable Diffusion<br/>optional]
 ```
 
+## Results
+
+Trained on Colab (T4 GPU) with the notebook in `notebooks/`: 5 epochs, about 22 minutes.
+
+| Head | Test accuracy | Test macro-F1 |
+|---|---|---|
+| Category (20 classes) | **94.0%** | **0.946** |
+| Colour (14 groups) | **76.5%** | **0.653** |
+
+Backbone `google/vit-base-patch16-224-in21k`, best epoch 5 of 5, 26,472 train / 3,309 validation /
+3,309 test images (stratified split, test set used once at the end).
+
+![Training curves](docs/training_curves.png)
+![Confusion matrices](docs/confusion_matrices.png)
+![Example predictions on unseen test images](docs/example_predictions.png)
+
+**What the results show**
+
+- **Category is reliable.** The remaining errors are between classes that are genuinely close:
+  sports vs casual shoes (12% and 10% of each), tops vs t-shirts (10%), sandals vs flip-flops (7%),
+  formal vs casual shoes (6%). These boundaries are fuzzy in the labels too.
+- **Colour is the harder task.** The biggest error is the catch-all `other` group, predicted as black
+  47% of the time: it collects rare and unlabelled colours with no visual pattern of its own. The rest are
+  neighbouring shades that are hard to separate at 80×60 px: beige→brown (19%), grey→black (18%) and
+  grey→white (14%). In the example grid, a pale lilac shirt labelled "grey" is predicted purple.
+- **Colour was still improving at epoch 5** while category had levelled off by epoch 3, so more epochs
+  are the cheapest next gain for colour.
+- **The photo/title check finds real data problems.** For "Fossil Women White Dial Chronograph Watch"
+  the model sees a grey steel watch: the title's colour describes the dial, not the product. This is why
+  conflicts are flagged for review instead of being corrected automatically.
+- **The test run found a bug.** Titles like "Yellow T-shirt" were parsed as *Shirts*, which created
+  false category conflicts. That's fixed, with tests made from those real titles.
+
 ## Example
 
-Input: a photo plus the title `"Turtle Men Navy Blue Shirt"`; variant request `"olive green, linen, summer"`.
+Real output on test-set products (title in quotes):
 
-The product record (field names are real; the numbers depend on your trained model):
+```text
+"Fila Men Racer New Black Sports Shoes"
+  -> black Sports Shoes | men | consistent, no review needed
 
-```json
-{
-  "category": "Shirts",
-  "colour": "blue",
-  "gender": "men",
-  "image_confidence": {"category": 0.93, "colour": 0.88},
-  "text_attributes": {"colours": ["blue"], "raw_colours": ["navy blue"], "gender": "men", "category": "Shirts"},
-  "conflicts": [],
-  "warnings": [],
-  "needs_review": false
-}
+"Fossil Women White Dial Chronograph Watch ES2783"
+  -> grey Watches | women | needs review
+     ! colour: image says 'grey' (58%), text says 'white'
+
+"Baggit Women Purple Wallet"
+  -> purple Wallets | women | needs review
+     ! low confidence on colour (43%)
 ```
 
-The drafted prompt (this is exactly what the code produces for these inputs):
+A drafted design-variant prompt, for a men's blue shirt with the idea `"olive green, linen, summer"`:
 
 ```text
 men's shirts, olive green, linen, summer, professional e-commerce product photo, centered,
@@ -69,7 +102,7 @@ cd fashion-product-analyser
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[demo,data,dev]"
 
-pytest -q                                   # 73 tests, no download needed (~10 s on CPU)
+pytest -q                                   # 79 tests, no download needed (~10 s on CPU)
 
 python scripts/download_data.py             # Fashion Product Images (Small), ~44k products
 python -m fashion_analyser.train --data-dir data --out-dir runs/vit --epochs 5
@@ -188,7 +221,7 @@ src/fashion_analyser/
 frontend/              React + TypeScript web app (Vite, Vitest)
 app.py                 Gradio demo
 scripts/               dataset download, synthetic data for tests
-tests/                 73 pytest tests
+tests/                 79 pytest tests
 ```
 
 ## Data
@@ -204,7 +237,15 @@ The data isn't included in this repo.
 - Colour labels in the dataset are noisy; colour accuracy is capped by label quality.
 - Title parsing is rule-based and English-only. That's fine for this dataset, but it would need an NER
   model or LLM extraction for free-form descriptions.
+- Titles often name the colour of one part (a watch dial, a shoe sole, a print), so a photo/title
+  colour conflict isn't always an error in the data.
 - Stable Diffusion output still needs a human to check it. The prompt template controls framing, not design quality.
+
+## Next improvements
+
+- Train longer (8–10 epochs) and compare a ConvNeXt backbone.
+- Split the `other` colour group or drop it from training; map rare names like bronze, copper and metallic.
+- Use the higher-resolution version of the dataset for fabric and pattern attributes.
 
 ## License
 

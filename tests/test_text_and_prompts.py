@@ -38,6 +38,19 @@ def test_multiple_colours_kept_in_order():
     assert a.colours == ["black", "white"] and a.gender == "women" and a.category == "Tshirts"
 
 
+@pytest.mark.parametrize("title", [
+    "Myntra Men Yellow T-shirt",                      # from the real test set
+    "Beatles Men's The Beatles Dark Grey T-shirt",    # from the real test set
+    "Women Black T Shirts", "Basic Tee", "Puma Men Tshirt",
+])
+def test_t_shirt_spellings_are_tshirts_not_shirts(title):
+    assert extract_text_attributes(title, CATS).category == "Tshirts"
+
+
+def test_plain_shirt_is_still_shirts():
+    assert extract_text_attributes("Turtle Men Check Shirt", CATS).category == "Shirts"
+
+
 def test_longer_category_preferred():
     assert extract_text_attributes("Nike Men Sports Shoes", CATS).category == "Sports Shoes"
 

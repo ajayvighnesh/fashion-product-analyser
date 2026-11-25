@@ -38,6 +38,9 @@ class TextAttributes:
 
 def extract_text_attributes(text: str, categories: list[str] | None = None) -> TextAttributes:
     t = _norm(text or "")
+    # "T-shirt" / "T shirt" / "tee" all mean the dataset's "Tshirts", never "Shirts".
+    t = re.sub(r" t ?shirt(s?) ", r" tshirt\1 ", t)
+    t = re.sub(r" tee(s?) ", r" tshirt\1 ", t)
     attrs = TextAttributes()
 
     # Longest colour names first, so "navy blue" wins over "blue".
