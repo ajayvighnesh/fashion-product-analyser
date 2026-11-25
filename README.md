@@ -7,6 +7,10 @@ that data to draft Stable Diffusion prompts for new design variants.
 
 **On 3,309 unseen products it identifies the product type correctly 94% of the time and the colour 77% of the time** ([results](#results)).
 
+![The web app analysing a product photo](docs/app_screenshot.png)
+*The React app running on the trained model. The title was deliberately entered as "Red" to show the
+photo/title check: the model sees a blue t-shirt and flags the mismatch for review.*
+
 - **Computer vision:** a pretrained Hugging Face backbone (ViT by default), fine-tuned in PyTorch with
   two heads that predict **product category** and **colour**. OpenCV handles preprocessing and
   image-quality checks.
