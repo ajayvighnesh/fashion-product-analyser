@@ -171,6 +171,11 @@ and returns 503 with a clear message if no model is loaded. The frontend checks 
 uploading and shows server errors in plain language. For deployment, set `VITE_API_URL` to the API's
 address when building the frontend, and `CORS_ORIGINS` on the API to the frontend's address.
 
+**Hosting:** `.github/workflows/deploy-space.yml` builds the React app and publishes it with the API
+to a Hugging Face Space (Docker, one server on port 7860, see `deploy/space/`). The Space downloads the
+trained model from the Hugging Face model repo `<user>/fashion-product-analyser-vit` when it starts.
+It runs when the repository secret `HF_TOKEN` (a Hugging Face write token) is set.
+
 The Gradio app (`python app.py --run-dir runs/vit`) is still there as a quick internal demo.
 
 ## Design decisions

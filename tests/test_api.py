@@ -86,3 +86,62 @@ def test_no_model_is_reported(monkeypatch, tmp_path):
     r = c.post("/api/analyse", files={"image": ("p.jpg", _jpg(), "image/jpeg")})
     assert r.status_code == 503
     api.get_analyser.cache_clear()
+
+
+# ---- hosting: model lookup, download and static frontend ---------------------------
+def _copy_run(src_client_run, dst):
+    import shutil
+    shutil.copytree(src_client_run, dst)
+    return dst
+
+
+def test_model_found_in_nested_or_flat_upload(client, tmp_path):
+    import os
+    import shutil
+    run = api.find_run_dir(os.environ["RUN_DIR"])
+    # nested: uploaded as an unzipped archive containing the vit/ folder
+    nested = tmp_path / "upload" / "vit"
+    shutil.copytree(run, nested)
+    assert api.find_run_dir(tmp_path / "upload") == nested
+    # flat: backbone_config/config.json uploaded at the top level
+    flat = tmp_path / "flat"
+    shutil.copytree(run, flat)
+    shutil.move(str(flat / "backbone_config" / "config.json"), flat / "config.json")
+    shutil.rmtree(flat / "backbone_config")
+    assert MultiTaskClassifier.load(flat) is not None
+    assert api.find_run_dir(tmp_path / "nothing") is None
+
+
+def test_model_downloaded_from_hub_when_missing(client, tmp_path, monkeypatch):
+    import os
+    import shutil
+    import sys
+    import types
+    run = api.find_run_dir(os.environ["RUN_DIR"])
+    calls = {}
+
+    def fake_snapshot_download(repo_id, local_dir, token=None):
+        calls["repo"] = repo_id
+        shutil.copytree(run, local_dir, dirs_exist_ok=True)
+
+    monkeypatch.setitem(sys.modules, "huggingface_hub",
+                        types.SimpleNamespace(snapshot_download=fake_snapshot_download))
+    monkeypatch.setenv("RUN_DIR", str(tmp_path / "model"))
+    monkeypatch.setenv("MODEL_REPO", "someone/fashion-model")
+    assert api.resolve_run_dir() == tmp_path / "model"
+    assert calls["repo"] == "someone/fashion-model"
+    monkeypatch.setenv("RUN_DIR", os.environ["RUN_DIR"])
+
+
+def test_static_frontend_served_alongside_api(client, tmp_path, monkeypatch):
+    import importlib
+    (tmp_path / "index.html").write_text("<html>app</html>")
+    monkeypatch.setenv("STATIC_DIR", str(tmp_path))
+    mod = importlib.reload(api)
+    try:
+        c = TestClient(mod.app)
+        assert "app" in c.get("/").text
+        assert c.get("/api/health").json()["status"] == "ok"
+    finally:
+        monkeypatch.delenv("STATIC_DIR")
+        importlib.reload(api)

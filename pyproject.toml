@@ -23,7 +23,7 @@ dependencies = [
 
 [project.optional-dependencies]
 demo = ["gradio>=4"]
-api = ["fastapi>=0.110", "uvicorn", "python-multipart"]
+api = ["fastapi>=0.110", "uvicorn", "python-multipart", "huggingface_hub"]
 data = ["datasets", "kagglehub"]
 llm = ["langchain-openai", "langchain-ollama"]
 generate = ["diffusers", "accelerate"]

@@ -93,7 +93,10 @@ class MultiTaskClassifier(nn.Module):
     def load(cls, out_dir: str | Path, map_location: str = "cpu") -> "MultiTaskClassifier":
         out_dir = Path(out_dir)
         meta = json.loads((out_dir / "model_meta.json").read_text())
-        config = AutoConfig.from_pretrained(out_dir / "backbone_config")
+        cfg_dir = out_dir / "backbone_config"
+        if not (cfg_dir / "config.json").is_file():  # files uploaded without the subfolder
+            cfg_dir = out_dir
+        config = AutoConfig.from_pretrained(cfg_dir)
         model = cls(AutoModel.from_config(config), meta["n_categories"], meta["n_colours"],
                     meta["backbone_name"])
         model.load_state_dict(torch.load(out_dir / "model.pt", map_location=map_location))

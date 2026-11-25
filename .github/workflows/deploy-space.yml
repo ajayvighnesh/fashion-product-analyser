@@ -1,0 +1,67 @@
+name: deploy to Hugging Face
+
+# Builds the React app and publishes it, with the API, to a Hugging Face Space.
+# Needs a repository secret HF_TOKEN (a Hugging Face token with "write" access).
+# The trained model is downloaded by the Space from <your-hf-username>/fashion-product-analyser-vit.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ["src/**", "frontend/**", "deploy/**", "pyproject.toml"]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+    steps:
+      - name: Check for the Hugging Face token
+        run: |
+          if [ -z "$HF_TOKEN" ]; then
+            echo "::warning::HF_TOKEN secret not set; skipping deployment."
+            echo "SKIP=1" >> "$GITHUB_ENV"
+          fi
+      - uses: actions/checkout@v4
+        if: env.SKIP != '1'
+      - uses: actions/setup-node@v4
+        if: env.SKIP != '1'
+        with:
+          node-version: "22"
+      - name: Build the React app
+        if: env.SKIP != '1'
+        working-directory: frontend
+        run: npm ci && npm run build
+      - name: Assemble the Space
+        if: env.SKIP != '1'
+        run: |
+          mkdir space
+          cp deploy/space/Dockerfile space/
+          cp deploy/space/SPACE_README.md space/README.md
+          cp pyproject.toml space/
+          cp -r src space/src
+          cp -r frontend/dist space/static
+          find space -name __pycache__ -prune -exec rm -rf {} +
+      - uses: actions/setup-python@v5
+        if: env.SKIP != '1'
+        with:
+          python-version: "3.11"
+      - name: Upload to Hugging Face
+        if: env.SKIP != '1'
+        run: |
+          pip install -q huggingface_hub
+          python - <<'PY'
+          import os
+          from huggingface_hub import HfApi
+          api = HfApi(token=os.environ["HF_TOKEN"])
+          user = api.whoami()["name"]
+          space = f"{user}/fashion-product-analyser"
+          model = f"{user}/fashion-product-analyser-vit"
+          api.create_repo(space, repo_type="space", space_sdk="docker", exist_ok=True)
+          api.add_space_variable(space, "MODEL_REPO", model)
+          api.upload_folder(repo_id=space, repo_type="space", folder_path="space",
+                            commit_message=f"Deploy {os.environ['GITHUB_SHA'][:7]}",
+                            delete_patterns=["src/**", "static/**"])
+          print(f"Deployed: https://huggingface.co/spaces/{space}")
+          print(f"App URL:  https://{user.lower()}-fashion-product-analyser.hf.space")
+          PY
