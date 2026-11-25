@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fashion-analyser"
+version = "0.1.0"
+description = "Multimodal fashion product analyser: vision model + LangChain agent + Stable Diffusion prompts"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "Ajay Vignesh Vijayakumar Ambika" }]
+license = { text = "MIT" }
+dependencies = [
+    "torch>=2.2",
+    "transformers>=4.40",
+    "opencv-python-headless>=4.8",
+    "numpy",
+    "pandas",
+    "scikit-learn",
+    "langchain>=1.0",
+    "langchain-core>=1.0",
+]
+
+[project.optional-dependencies]
+demo = ["gradio>=4"]
+data = ["datasets", "kagglehub"]
+llm = ["langchain-openai", "langchain-ollama"]
+generate = ["diffusers", "accelerate"]
+dev = ["pytest"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

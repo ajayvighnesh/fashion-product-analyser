@@ -1,0 +1,11 @@
+torch>=2.2
+transformers>=4.40
+opencv-python-headless>=4.8
+numpy
+pandas
+scikit-learn
+langchain>=1.0
+langchain-core>=1.0
+gradio>=4
+datasets
+pytest
